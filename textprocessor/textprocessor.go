@@ -29,49 +29,65 @@ func Run(src io.Reader, dst io.Writer) (err error) {
 	}
 
 	fields := strings.Fields(fixPunctuation(sb.String()))
-	fmt.Println(fields)
 	finalFields := make([]string, 0)
 	for _, field := range fields {
-		fmt.Println(finalFields)
-		switch field {
+		stripped := field
+		trailingPunct := ""
+		for len(stripped) > 0 && isPunct(rune(stripped[len(stripped)-1])) {
+			trailingPunct = string(stripped[len(stripped)-1]) + trailingPunct
+			stripped = stripped[:len(stripped)-1]
+		}
+
+		reattach := func() {
+			if trailingPunct != "" && len(finalFields) > 0 {
+				finalFields[len(finalFields)-1] += trailingPunct
+			}
+		}
+
+		switch stripped {
 		case "(hex)":
 			if len(finalFields) == 0 {
-				return fmt.Errorf("Not enough words to apply transformation \"%v\" to", field)
+				return fmt.Errorf("Not enough words to apply transformation \"%v\" to", stripped)
 			}
 			err = applyHex(finalFields)
 			if err != nil {
 				return err
 			}
+			reattach()
 		case "(bin)":
 			if len(finalFields) == 0 {
-				return fmt.Errorf("Not enough words to apply transformation \"%v\" to", field)
+				return fmt.Errorf("Not enough words to apply transformation \"%v\" to", stripped)
 			}
 			err = applyBin(finalFields)
 			if err != nil {
 				return err
 			}
+			reattach()
 		case "(up)":
 			if len(finalFields) == 0 {
-				return fmt.Errorf("Not enough words to apply transformation \"%v\" to", field)
+				return fmt.Errorf("Not enough words to apply transformation \"%v\" to", stripped)
 			}
 			applyUp(finalFields)
+			reattach()
 		case "(low)":
 			if len(finalFields) == 0 {
-				return fmt.Errorf("Not enough words to apply transformation \"%v\" to", field)
+				return fmt.Errorf("Not enough words to apply transformation \"%v\" to", stripped)
 			}
 			applyLow(finalFields)
+			reattach()
 		case "(cap)":
 			if len(finalFields) == 0 {
-				return fmt.Errorf("Not enough words to apply transformation \"%v\" to", field)
+				return fmt.Errorf("Not enough words to apply transformation \"%v\" to", stripped)
 			}
 			applyCap(finalFields)
+			reattach()
 		default:
 			if len(finalFields) != 0 &&
 				(finalFields[len(finalFields)-1] == "(up," ||
 					finalFields[len(finalFields)-1] == "(low," ||
 					finalFields[len(finalFields)-1] == "(cap,") {
-				if field[len(field)-1] == ')' {
-					num, err := strconv.Atoi(field[:(len(field) - 1)])
+				if len(stripped) > 0 && stripped[len(stripped)-1] == ')' {
+					num, err := strconv.Atoi(stripped[:(len(stripped) - 1)])
 					if err != nil || num < 0 {
 						return fmt.Errorf("Invalid token: \"%v\"", finalFields[len(finalFields)-1]+" "+field)
 					}
@@ -89,11 +105,16 @@ func Run(src io.Reader, dst io.Writer) (err error) {
 					case "cap":
 						applyCapN(finalFields, num)
 					}
+					reattach()
+				} else {
+					finalFields = append(finalFields, stripped)
+				}
+			} else {
+				if stripped == "(up," || stripped == "(low," || stripped == "(cap," {
+					finalFields = append(finalFields, stripped)
 				} else {
 					finalFields = append(finalFields, field)
 				}
-			} else {
-				finalFields = append(finalFields, field)
 			}
 		}
 	}
@@ -189,7 +210,7 @@ func applyUp(fields []string) {
 
 func applyUpN(fields []string, n int) {
 	for i := range n {
-		fields[len(fields)-i] = strings.ToUpper(fields[len(fields)-i])
+		fields[len(fields)-1-i] = strings.ToUpper(fields[len(fields)-1-i])
 	}
 }
 
@@ -199,7 +220,7 @@ func applyLow(fields []string) {
 
 func applyLowN(fields []string, n int) {
 	for i := range n {
-		fields[len(fields)-i] = strings.ToLower(fields[len(fields)-i])
+		fields[len(fields)-1-i] = strings.ToLower(fields[len(fields)-1-i])
 	}
 }
 
@@ -216,7 +237,7 @@ func applyCap(fields []string) {
 
 func applyCapN(fields []string, n int) {
 	for i := range n {
-		fields[len(fields)-i] = capitalize(fields[len(fields)-i])
+		fields[len(fields)-1-i] = capitalize(fields[len(fields)-1-i])
 	}
 }
 
