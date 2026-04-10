@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"main/textprocessor"
 	"os"
+	"strings"
 )
 
 func printUsage() {
@@ -23,27 +25,45 @@ func main() {
 	}
 
 	inpath, outpath := os.Args[1], os.Args[2]
-	infile, err := os.Open(inpath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "file \"%s\" not found", inpath)
-			os.Exit(1)
-		} else {
-			fmt.Fprintln(os.Stderr, "Unexpected error:", err.Error())
-			os.Exit(1)
+
+	var fileReader io.Reader
+	if inpath == outpath {
+		contents, err := os.ReadFile(inpath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "file \"%s\" not found", inpath)
+				os.Exit(1)
+			} else {
+				fmt.Fprintln(os.Stderr, "Unexpected error:", err.Error())
+				os.Exit(1)
+			}
 		}
+		fileReader = strings.NewReader(string(contents))
+	} else {
+		infile, err := os.Open(inpath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "file \"%s\" not found", inpath)
+				os.Exit(1)
+			} else {
+				fmt.Fprintln(os.Stderr, "Unexpected error:", err.Error())
+				os.Exit(1)
+			}
+		}
+		defer infile.Close()
+		fileReader = infile
 	}
 
-	outfile, err := os.OpenFile(outpath, os.O_WRONLY|os.O_CREATE, 0o644)
+	outfile, err := os.OpenFile(outpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Unexpected error:", err.Error())
 		os.Exit(1)
 	}
+	defer outfile.Close()
 
-	err = textprocessor.Run(infile, outfile)
+	err = textprocessor.Run(fileReader, outfile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error while processing:", err.Error())
-		outfile.Close()
 		os.Remove(outpath)
 		os.Exit(1)
 	}
